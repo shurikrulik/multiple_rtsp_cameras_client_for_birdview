@@ -267,48 +267,41 @@ int main()
 		move_rear_ = getTrackbarPos("Move rear","move");
 		move_together_ = getTrackbarPos("Move together","move");
 
-	#pragma omp parallel num_threads(4)
-	{
-		#pragma omp sections
-		{		
-			#pragma omp section
-			{
-				Mat transform_front = getTransformation(1280, 720, alpha_front_, beta_front_, gamma_front_, f_front_, d_front_);
-				warpPerspective(undist_front, destination_front, transform_front, imageSize, INTER_NEAREST );
-			}
-			#pragma omp section
-			{
-				Mat transform_left = getTransformation(1280, 720, alpha_left_, beta_left_, gamma_left_, f_left_, d_left_);
-				warpPerspective(undist_left, destination_left, transform_left, imageSize, INTER_NEAREST );
-			}
-			#pragma omp section
-			{
-				Mat transform_right = getTransformation(1280, 720, alpha_right_, beta_right_, gamma_right_, f_right_, d_right_);
-				warpPerspective(undist_right, destination_right, transform_right, imageSize, INTER_NEAREST );
-			}
-			#pragma omp section
-			{
-				Mat transform_rear = getTransformation(1280, 720, alpha_rear_, beta_rear_, gamma_rear_, f_rear_, d_rear_);
-				warpPerspective(undist_rear, destination_rear, transform_rear, imageSize, INTER_NEAREST );
-			}
-		}
-	}
+	
+	Mat transform_front = getTransformation(1280, 720, alpha_front_, beta_front_, gamma_front_, f_front_, d_front_);
+	warpPerspective(undist_front, destination_front, transform_front, imageSize, INTER_NEAREST );
+			
+	Mat transform_left = getTransformation(1280, 720, alpha_left_, beta_left_, gamma_left_, f_left_, d_left_);
+	warpPerspective(undist_left, destination_left, transform_left, imageSize, INTER_NEAREST );
+			
+	Mat transform_right = getTransformation(1280, 720, alpha_right_, beta_right_, gamma_right_, f_right_, d_right_);
+	warpPerspective(undist_right, destination_right, transform_right, imageSize, INTER_NEAREST );
+			
+	Mat transform_rear = getTransformation(1280, 720, alpha_rear_, beta_rear_, gamma_rear_, f_rear_, d_rear_);
+	warpPerspective(undist_rear, destination_rear, transform_rear, imageSize, INTER_NEAREST );
+			
 
 	auto end_perspect  = chrono::high_resolution_clock::now();	
+	
+	auto start_merge  = chrono::high_resolution_clock::now();
 
 	destination_left = rotateBound(destination_left, 270);
-	destination_right = rotateBound(destination_right, 90);
 	flip(destination_left, destination_left, 1);
+	flip(destination_left, destination_left, 0);
+	destination_right = rotateBound(destination_right, 90);
 	flip(destination_right, destination_right, 1);
+	flip(destination_right, destination_right, 0);	
 	flip(destination_rear, destination_rear, 0);
-	flip(destination_rear, destination_rear, 1);	
+	flip(destination_rear, destination_rear, 1);
+	
+	
 
 	Mat bckg_left = bg;
 	Mat bckg_right = bg;
 	Mat bckg_front = bg;
 	Mat bckg_rear = bg;
 	
-	Mat mask_vert = Mat::zeros(bg.rows, bg.cols, CV_8U);
+	/*Mat mask_vert = Mat::zeros(bg.rows, bg.cols, CV_8U);
 	Point pts_vert[6] = {
 		Point(0, 0),
 		Point((h * 2 + w) / 2, (h * 2 + w) / 2),
@@ -330,7 +323,7 @@ int main()
 		Point(0, 0)
 
 	};
-	fillConvexPoly( mask_hor, pts_hor, 7, cv::Scalar(1) );	
+	fillConvexPoly( mask_hor, pts_hor, 7, cv::Scalar(1) );*/	
 
 	Mat mask_front = Mat::zeros(h, w, CV_8U);
 	Point pts_front[] = {
@@ -347,7 +340,7 @@ int main()
 		Point(w ,h)
 	};
 	fillConvexPoly( mask_rear, pts_rear, 3, cv::Scalar(1) );	
-	
+
 	Rect whereRec_right(w + h - (move_together_ + move_right_), h, 720, 1280);
 	destination_right.copyTo(bckg_right(whereRec_right));
 	
@@ -364,7 +357,8 @@ int main()
 	bitwise_or(bckg_front, bckg_rear, vis_vert);
 	bitwise_or(bckg_left, bckg_right, vis_hor);
 	bitwise_or(vis_vert, vis_hor, vis_res);
-	resize(vis_res,resized,Size(vis_res.cols/2,vis_res.rows/2),0, 0, INTER_NEAREST);	
+	resize(vis_res,resized,Size(vis_res.cols/2,vis_res.rows/2),0, 0, INTER_NEAREST);
+	auto end_merge  = chrono::high_resolution_clock::now();	
 	
 
 	auto start_imshow = chrono::high_resolution_clock::now();
@@ -401,21 +395,22 @@ int main()
 	double cap_time = chrono::duration_cast<chrono::nanoseconds>(end_cap - start_cap).count();
 	double undist_time = chrono::duration_cast<chrono::nanoseconds>(end_undist - start_undist).count();
 	double perspect_time = chrono::duration_cast<chrono::nanoseconds>(end_perspect - start_perspect).count();
+	double merge_time = chrono::duration_cast<chrono::nanoseconds>(end_merge - start_merge).count();
 	double imshow_time = chrono::duration_cast<chrono::nanoseconds>(end_imshow - start_imshow).count();
 	double total_time = chrono::duration_cast<chrono::nanoseconds>(end_total - start_total).count();
 	cap_time *= 1e-9;
 	undist_time *= 1e-9;
 	perspect_time *= 1e-9;
+	merge_time *= 1e-9;
 	imshow_time *= 1e-9;
 	total_time *= 1e-9;
 	cout<<"Capture: "<<fixed<<cap_time<<setprecision(9)<<" sec  ";
 	cout<<"Undistortion: "<<fixed<<undist_time<<setprecision(9)<<" sec  ";
 	cout<<"Perspect: "<<fixed<<perspect_time<<setprecision(9)<<" sec  ";
+	cout<<"Merge: "<<fixed<<merge_time<<setprecision(9)<<" sec  ";
 	cout<<"Imshow: "<<fixed<<imshow_time<<setprecision(9)<<" sec  ";
 	cout<<"Total: "<<fixed<<total_time<<setprecision(9)<<" sec  "<<endl;
-	
     }
 	}
-
     return 0;
 }
